@@ -45,6 +45,8 @@
  *  This would not be possible without his work.
  *
  *  Changes:
+ *  2.5.0 - 12/06/20 - Moved all member location functionality to Location Tracker child Driver
+                       Keeping only Circle level functionality at parent app level
  *  2.2.0 - 12/04/20 - bug fixes and sorted places list added back in
  *  2.1.4 - 12/03/20 - Cleanup and more bug extermination
  *  2.1.3 - 12/02/20 - Bug fixes, moved stuff around and cleaned up some more cruft
@@ -69,7 +71,7 @@ import java.text.SimpleDateFormat
 
 def setVersion(){
     state.name = "Life360 with States"
-  state.version = "2.1.0"
+  state.version = "2.5.0"
 }
 
 definition(
@@ -323,7 +325,6 @@ def createCircleSubscription() {
         log.debug (e)
     }
 
-
     if (result.data?.hookUrl) {
           if(logEnable) log.debug "Webhook creation successful."
         log.info "Subscribed to Circle Notifications, Confirmation: ${result.data?.hookUrl}"
@@ -361,7 +362,6 @@ def updated() {
 
           if (childDevice) {
             if(logEnable) log.debug "Child Device Successfully Created"
-            // generateInitialEvent (member, childDevice)
             scheduleUpdates()
            }
       }
@@ -381,14 +381,6 @@ def updated() {
     scheduleUpdates()
 }
 
-/* def generateInitialEvent (member, childDevice) {
-    if(logEnable) log.debug "In generateInitialEvent - (${state.version})"
-
-    updateMembers() // Perform an update for the first time
-
-    runEvery1Minute(updateMembers) // Schedule to update every minute - this is just in case and may need to be removed
-}
-*/
 def initialize() {
   // TODO: subscribe to attributes, devices, locations, etc.
 }

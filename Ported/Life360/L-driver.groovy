@@ -38,7 +38,15 @@
  *  Special thanks to namespace: "tmleafs", author: "tmleafs" for the work on the Life360 ST driver
  *
  *  Changes:
- *  1.3.0 = 12/04/20 - Fixed condition to trigger presence & address changes
+ *  1.5.0 - 12/06/20 - Moved all location functionality to child driver from parent app -and-
+                       Added:
+                         - Minimum Transit Speed Preference - use to set a custom speed threshold
+                           for inTransit to become true (follows Km or Miles unit preference)
+                         - Minimum Driving Speed Prederence - use to set a custom speed threshold
+                           for isDriving to become true (follows Km or Miles unit preference)
+                         - memberName attribute - First Name + Last Name from Life360 member info
+                         - memberFriendlyName driver preference and attribute
+ *  1.3.0 - 12/04/20 - Fixed condition to trigger presence & address changes
  *  1.2.6 - 12/03/20 - Exterminating bugs
  *  1.2.5 - 12/02/20 - Prelim fix for address1prev and address1 eventing to allow for Life360 Tracker to keep track of departures / arrivals
  *  1.2.4 - 12/02/20 - Fix wifi status not updating on bpt-StatusTile1
@@ -129,8 +137,11 @@ preferences {
     //       this may be restored if the currently applied consolidated logic proves to be unreliable
     // input "maxGPSJump", "number", title: "Max GPS Jump", description: "If you are getting a lot of false readings, raise this value", required: true, defaultValue: 25
     input "units", "enum", title: "Distance Units", description: "Miles or Kilometers", required: false, options:["Kilometers","Miles"]
-    input "speedThreshold", "number", title: "Move Threshold", description: "Use this to set the threshold by which the device considers you to be on-the-move (metric speed)", required: true, defaultValue: 5
-    input "memberFriendlyName", "text", title: "Member Friendly Name", description: "Choose friendly member name for rules etc.", defaultValue: "Mr. Roboto"
+// Avi add block starts here
+    input "memberFriendlyName", "text", title: "Member Friendly Name", description: "(for use in Rules etc.)", defaultValue: "Mr. Roboto"
+    input "transitThreshold", "text", title: "Minimum 'Transit' Speed", description: "Set minimum speed for inTransit to be true\n(leave as 0 to use Life360 data)", required: true, defaultValue: "0"
+    input "drivingThreshold", "text", title: "Minimum 'Driving' Speed", description: "Set minimum speed for isDriving to be true\n(leave as 0 to use Life360 data)", required: true, defaultValue: "0"
+// Avi add block ends here
     input "avatarFontSize", "text", title: "Avatar Font Size", required: true, defaultValue: "15"
     input "avatarSize", "text", title: "Avatar Size by Percentage", required: true, defaultValue: "75"
     input "historyFontSize", "text", title: "History Font Size", required: true, defaultValue: "15"
@@ -423,11 +434,6 @@ def generatePresenceEvent(member, thePlaces, home) {
     def distanceMiles = ((distanceAway / 1000) / 1.609344).toDouble().round(2)
     sendEvent( name: "distanceMiles", value: distanceMiles )
 
-    // Avi - Sharptools.io attribute for distance tile - Set acceleration to
-    // active state if we are more than 1km away from home
-    def sAcceleration = (distanceKm > 1) ? "active" : "inactive"
-    sendEvent( name: "acceleration", value: sAcceleration )
-
     // Update state variables and display on device page
     state.oldDistanceAway = device.currentValue("distanceMetric")
 
@@ -435,12 +441,35 @@ def generatePresenceEvent(member, thePlaces, home) {
     // and update temperature attribute with appropriate speed units
     // as chosen by users in device preferences
     def sStatus
+    if (transitThreshold == null) transitThreshold = "0"
+    def movethreshold = transitThreshold.toDouble().round(2)
+    if (drivingThreshold == null) drivingThreshold = "0"
+    def drivethreshold = drivingThreshold.toDouble().round(2)
+
     if(units == "Kilometers" || units == null || units == "") {
         sStatus = sprintf("%.2f", distanceKm) + "  km from Home"
         sendEvent( name: "status", value: sStatus )
         state.status = sStatus
 
         sendEvent( name: "temperature", value: speedKm )
+
+        // if transit threshold (in Km) specified in preferences then use it
+        // else, use info provided by Life360
+        if (movethreshold > 0) {
+            inTransit = (speedKm > movethreshold) ? "true" : "false"
+          }
+          else {
+            inTransit = (member.location.inTransit == "0") ? "false" : "true"
+          }
+
+        // if driving threshold (in Km) specified in preferences then use it
+        // else, use info provided by Life360
+        if (drivethreshold > 0) {
+            isDriving = (speedKm > drivethreshold) ? "true" : "false"
+          }
+          else {
+            isDriving = (member.location.isDriving == "0") ? "false" : "true"
+          }
     }
     else {
         sStatus = sprintf("%.2f", distanceMiles) + " miles from Home"
@@ -448,18 +477,39 @@ def generatePresenceEvent(member, thePlaces, home) {
         state.status = sStatus
 
         sendEvent( name: "temperature", value: speedMiles )
+
+        // if transit threshold (in Miles) specified in preferences then use it
+        // else, use info provided by Life360
+        if (movethreshold > 0) {
+            inTransit = (speedMiles > movethreshold) ? "true" : "false"
+          }
+          else {
+            inTransit = (member.location.inTransit == "0") ? "false" : "true"
+          }
+
+        // if driving threshold (in Miles) specified in preferences then use it
+        // else, use info provided by Life360
+        if (drivethreshold > 0) {
+            isDriving = (speedMiles > drivethreshold) ? "true" : "false"
+          }
+          else {
+            isDriving = (member.location.isDriving == "0") ? "false" : "true"
+          }
     }
 
-    // Avi - instead of utilizing Life360 flag, just mark as Moving
-    // if our metric speed is > speedThreshold preference.
-    // Good for jogging :-)
-
     // *** On the move ***
-    def inTransit = (member.location.speed > speedThreshold) ? "true" : "false"
-    sendEvent( name: "inTransit", value: inTransit )
+    if (logEnable) log.info "speedKm = $speedKm  speedMiles = $speedMiles moverthreshold = $movethreshold inTransit = $inTransit drivethreshold = $drivethreshold isDriving = $isDriving"
 
-    def isDriving = (member.location.isDriving != "0") ? "true" : "false"
+    sendEvent( name: "inTransit", value: inTransit )
     sendEvent( name: "isDriving", value: isDriving )
+
+    // Avi - Sharptools.io attribute for distance tile - Set acceleration to
+    // active state if we are either moving
+    // or if we are anywhere outside home radius
+    def sAcceleration = (inTransit == "true" || isDriving == "true" || memberPresence == "not present") ? "active" : "inactive"
+    if (logEnable) log.info "inTransit: $inTransit  isDriving: $isDriving  memberPresence: $memberPresence  sAcceleration: $sAcceleration"
+
+    sendEvent( name: "acceleration", value: sAcceleration )
 
     // *** Battery Level ***
     def battery = Math.round(member.location.battery.toDouble())
