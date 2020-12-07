@@ -349,9 +349,10 @@ def generatePresenceEvent(member, thePlaces, home) {
     // Where we think we are now is either at a named place or at address1
     def address1 = (member.location.name) ? member.location.name : member.location.address1
     // or perhaps we are on the free version of Life360 (address1  = null)
-    if (!address1) address1 = "No Data"
-    def address2 = (member.location.address2) ? member.location.address2 : "No Data"
+    if (address1 == null || address1 == "") address1 = "No Data"
 
+    def address2 = (member.location.address2) ? member.location.address2 : member.location.shortaddress
+    if (address2 == null || address2 == "") address2 = "No Data"
 
     // *** Presence ***
     // It is safe to assume that if we are within home radius then we are
@@ -368,6 +369,8 @@ def generatePresenceEvent(member, thePlaces, home) {
     // *** On the move ***
     // if we changed from present --> not present then we are departing from home
     def prevAddress = (departing) ? "Home" : device.currentValue('address1')
+    if (prevAddress == null) prevAddress = "Lost"
+
     if(logEnable) log.debug "prevAddress = $prevAddress | newAddress = $address1"
 
     if (address1 != prevAddress) {
