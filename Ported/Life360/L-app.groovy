@@ -212,15 +212,16 @@ def listCircles() {
             }
 
             def places = result.data.places
-
-            state.places = places
+            def sortedPlaces = state.places.sort { a, b -> a.name <=> b.name}
+            state.places = sortedPlaces
 
             section(getFormat("header-green", "${getImage("Blank")}"+" Select Life360 Place to Match Current Location")) {
                 paragraph "Please select the ONE Life360 Place that matches your Hubitat location: ${location.name}"
-                thePlaces = places.collectEntries{[it.id, it.name]}
-                sortedPlaces = thePlaces.sort { a, b -> a.value <=> b.value }
-                input "place", "enum", multiple: false, required:true, title:"Life360 Places: ", options: sortedPlaces, submitOnChange: true
+                thePlaces = state.places.collectEntries{[it.id, it.name]}
+                input "place", "enum", multiple: false, required:true, title:"Life360 Places: ", options: thePlaces, submitOnChange: true
             }
+            state.home = state.places.find{it.id==settings.place}
+            if(logEnable) log.debug "home = ${state.home}"
         }
 
         if(place && circle) {
@@ -387,11 +388,17 @@ def refresh() {
 }
 
 def scheduleUpdates() {
+<<<<<<< Updated upstream
     if (logEnable) log.info "In scheduleUpdates..."
     schedule("0/30 * * * * ? *", updateMembers)
     updateMembers()
     //  runEvery1Minute(updateMembers)
 
+=======
+    if (logEnable) log.trace "In scheduleUpdates..."
+    // Continue to update Info for all members every 30 seconds
+    schedule("0/10 * * * * ? *", updateMembers)
+>>>>>>> Stashed changes
 }
 
 def updateMembers(){
@@ -419,7 +426,8 @@ def cmdHandler(resp, data) {
         state.members = members
 
         // Get a *** sorted *** list of places for easier navigation
-        def thePlaces = state.places.sort { a, b -> a.name <=> b.name }.name
+        //def thePlaces = state.places.sort { a, b -> a.name <=> b.name }.name
+        def thePlaces = state.places.name
         def home = state.places.find{it.id==settings.place}
 
         // Iterate through each member and trigger an update from payload
